@@ -1,0 +1,334 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"routine\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"title\": {\n          \"type\": \"string\",\n          \"description\": \"The title of the routine\"\n        },\n        \"folder_id\": {\n          \"type\": \"number\",\n          \"nullable\": true,\n          \"default\": null,\n          \"description\": \"The folder id the routine should be added to. Pass null to insert the routine into default 'My Routines' folder\"\n        },\n        \"notes\": {\n          \"type\": \"string\",\n          \"description\": \"Additional notes for the routine\"\n        },\n        \"exercises\": {\n          \"type\": \"array\",\n          \"description\": \"List of exercises in the routine\",\n          \"items\": {\n            \"type\": \"object\",\n            \"properties\": {\n              \"exercise_template_id\": {\n                \"type\": \"string\",\n                \"description\": \"The ID of the exercise template\"\n              },\n              \"superset_id\": {\n                \"type\": \"integer\",\n                \"nullable\": true,\n                \"description\": \"The ID of the superset\"\n              },\n              \"rest_seconds\": {\n                \"type\": \"integer\",\n                \"nullable\": true,\n                \"description\": \"The rest time in seconds (Pause). Never negative.\"\n              },\n              \"notes\": {\n                \"type\": \"string\",\n                \"nullable\": true,\n                \"description\": \"Additional notes for the exercise\"\n              },\n              \"sets\": {\n                \"type\": \"array\",\n                \"description\": \"Sets for the exercise\",\n                \"items\": {\n                  \"type\": \"object\",\n                  \"properties\": {\n                    \"type\": {\n                      \"type\": \"string\",\n                      \"enum\": [\"warmup\", \"normal\", \"failure\", \"dropset\"],\n                      \"description\": \"The type of the set\"\n                    },\n                    \"weight_kg\": {\n                      \"type\": \"number\",\n                      \"nullable\": true,\n                      \"description\": \"The weight in kilograms\"\n                    },\n                    \"reps\": {\n                      \"type\": \"integer\",\n                      \"nullable\": true,\n                      \"description\": \"The number of repetitions (wdhl.). Never negative.\"\n                    },\n                    \"distance_meters\": {\n                      \"type\": \"integer\",\n                      \"nullable\": true,\n                      \"description\": \"The distance in meters\"\n                    },\n                    \"duration_seconds\": {\n                      \"type\": \"integer\",\n                      \"nullable\": true,\n                      \"description\": \"The duration in seconds\"\n                    },\n                    \"custom_metric\": {\n                      \"type\": \"number\",\n                      \"nullable\": true,\n                      \"description\": \"A custom metric for the set. Currently used for steps and floors\"\n                    }\n                  }\n                }\n              }\n            },\n            \"required\": [\"exercise_template_id\", \"sets\"]\n          }\n        }\n      },\n      \"required\": [\"title\", \"exercises\"]\n    }\n  },\n  \"required\": [\"routine\"]\n}"
+      },
+      "id": "15d26c1a-6d26-4321-bf31-bbe148fd7f92",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        1456,
+        240
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "url": "https://api.hevyapp.com/v1/exercise_templates",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageSize",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "page",
+                    "value": "={{ $pageCount + 1 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "receiveSpecificStatusCodes",
+              "statusCodesWhenComplete": "404",
+              "limitPagesFetched": true,
+              "maxRequests": 10,
+              "requestInterval": 100
+            }
+          }
+        }
+      },
+      "id": "ff10cb04-5b48-4a84-ad6d-dd4e1b068592",
+      "name": "Get Exercise List from Hevy",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        640,
+        16
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "85dd9d76-d527-43ce-bd36-955bb2a3b3f6",
+              "name": "exercise_templates",
+              "type": "array",
+              "value": "={{ $json.exercise_templates }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0aab0670-aab3-463e-808f-e02d0a18d64f",
+      "name": "Format Exercise Names",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        864,
+        16
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "exercise_templates"
+            }
+          ]
+        },
+        "options": {
+          "mergeLists": true
+        }
+      },
+      "id": "3e718c7b-4b43-4c2a-a492-c88e26693b7d",
+      "name": "Combine Exercise List",
+      "type": "n8n-nodes-base.aggregate",
+      "position": [
+        1088,
+        16
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# GOAL\nYour task is to analyze the provided OCR data of a workout routine, interpret its contents, and convert it into a structured JSON object. You must strictly adhere to the provided JSON schema.\n\n# CONTEXT\n- The OCR data is imperfect and may contain typos or formatting quirks.\n- You will be given a list of available exercises from an application database (`Base Exercise Data`).\n\n# INPUT DATA\n1.  **OCR Data:**\n    ```\n{{ $('On form submission').item.json['Input Data'] }}\n    ```\n2.  **Base Exercise Data:**\n    ```json\n    {{ $json.exercise_templates.toJsonString() }}\n    ```\n\n# EXTRACTION RULES & SPECIFICS\nThis section contains specific instructions to guide the extraction process.\n\n- **Exercise Matching:** For each exercise name found in the OCR data, you MUST find the most semantically similar exercise in the `Base Exercise Data`. Use its `id` for the `exercise_template_id` in the final JSON. Do not invent new IDs.\n- **Default Folder:** If no folder is specified, use the default `folder_id` of `null`.\n- **Interpreting Sets:** A line like \"3x10 @ 50kg\" means 3 sets of 10 repetitions with 50 kilograms.\n- **Rest Times:** Look for terms like \"Pause,\" \"Rest,\" or time values (e.g., \"90s,\" \"1 min\") between exercises to determine the `rest_seconds`.\n- **Supersets:** If exercises are grouped with labels like \"A1, A2\" or listed together without a rest period, they are a superset. Assign them the same, incrementing `superset_id` (e.g., the first superset pair gets `superset_id: 1`, the next pair gets `superset_id: 2`).\n- **Tempo Information (optional):** Look for a 3 or 4-digit number (e.g., `4010`, `31X0`, `311`), often labeled \"Tempo\". If found for an exercise, capture this and include it in that exercise's `notes` field (e.g., `notes: \"Tempo: 4010\"`).\n\n\n\n# OUTPUT INSTRUCTIONS\n- Produce ONLY the final JSON object.\n- Do not include any explanatory text, markdown formatting, or apologies in your response.\n- The output must be a single, valid JSON object conforming to the schema.\n",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "38968f56-4402-44c4-a005-c3e08229d503",
+      "name": "Match Exercises & Structure Routine",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        1296,
+        16
+      ],
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hevyapp.com/v1/routines",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.output.toJsonString() }}",
+        "options": {}
+      },
+      "id": "fa2c6a2e-429b-41d2-96fd-6e0f81796379",
+      "name": "Create Hevy Routine",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1680,
+        16
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1184,
+        224
+      ],
+      "id": "04f5a49c-f3b6-4c92-a102-127f58b144aa",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "formTitle": "Input de Google",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Input Data",
+              "fieldType": "textarea",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        416,
+        16
+      ],
+      "id": "82a5469a-c8f6-4d78-b85d-1b44a4b80b38",
+      "name": "On form submission",
+      "webhookId": "5226271e-b151-4df0-abb5-ab7e1a2fd059"
+    },
+    {
+      "parameters": {
+        "content": "## 🚀 Hevy Workout Generator\nThis workflow takes a text description of a workout and creates it in your Hevy account.\n\n### ⚙️ Setup:\n1. **Hevy API:** Add your `hevy-api-key` header credential in the HTTP nodes.\n2. **AI:** Add your Google Gemini API key.",
+        "height": 240,
+        "width": 350,
+        "color": 4
+      },
+      "id": "99a3ba27-a9a3-411e-9a23-218aeaae04b5",
+      "name": "Sticky Note Intro",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 1. Input\nUse the **\"Open Form\"** button to paste your workout text.\n\n*Supports English & Spanish.*",
+        "color": 2
+      },
+      "id": "5e0e9a4e-a3e6-4bbd-b8be-99c291f0cab6",
+      "name": "Sticky Note Input",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        352,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 2. Fetch Exercises\nDownloads your exercises from Hevy to match names correctly.\n\n*Warning: Requires API Key.*",
+        "color": 3
+      },
+      "id": "5d1bfd96-e767-4683-99c4-565e22f4e296",
+      "name": "Sticky Note Fetch",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        608,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 3. AI Processing\nGemini matches your text to Hevy IDs and formats the JSON.",
+        "color": 5
+      },
+      "id": "0beb9a72-4ddd-4d6a-b546-3d219e8ef0eb",
+      "name": "Sticky Note AI",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1296,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 4. Create Routine\nSends the final routine to Hevy.\n\n*Warning: Requires API Key.*",
+        "color": 7
+      },
+      "id": "4455f51d-1ddf-41c8-ab4d-8b376324efb5",
+      "name": "Sticky Note Create",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        -176
+      ]
+    }
+  ],
+  "connections": {
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Match Exercises & Structure Routine",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Exercise List from Hevy": {
+      "main": [
+        [
+          {
+            "node": "Format Exercise Names",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Exercise Names": {
+      "main": [
+        [
+          {
+            "node": "Combine Exercise List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Exercise List": {
+      "main": [
+        [
+          {
+            "node": "Match Exercises & Structure Routine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Exercises & Structure Routine": {
+      "main": [
+        [
+          {
+            "node": "Create Hevy Routine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Match Exercises & Structure Routine",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Get Exercise List from Hevy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "d9f4c0eb55a224406aac6ddb01cd75b6ec378211b671a6bd9e6d6dd444e2b610"
+  }
+}
