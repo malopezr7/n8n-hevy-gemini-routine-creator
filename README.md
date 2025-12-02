@@ -178,21 +178,13 @@ cd n8n-hevy-gemini-routine-creator
 
 ### **Example Input Formats**
 
-```
-Pull Day
-- Lat Pulldown: 4x8 @ 60kg
-- Barbell Rows: 4x6 @ 80kg (Tempo: 3010)
-Rest 90s
-- Face Pulls: 3x12 @ 20kg
-- Bicep Curls: 3x10 @ 15kg (superset)
-```
-
-Or in Spanish:
-```
-Día de Pecho
-- Press de Banca: 5x5 @ 100kg
-- Aperturas con Mancuernas: 4x8 @ 25kg
-Descanso 60s
+```text
+ROUTINE: CHEST DAY
+GOAL: Strength
+EXERCISES:
+1. Bench Press - 3 sets of 5 reps
+2. Incline Dumbbell Press - 3 sets of 10 reps
+3. Cable Fly - 3 sets of 15 reps
 ```
 
 ---
